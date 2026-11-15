@@ -402,6 +402,50 @@ float StickDeadzonePercent(bool left) {
     return std::clamp(setting, 0.0f, 90.0f);
 }
 
+// Stick sensitivity: a gain on the stick vector, applied after the deadzone. 1.0 = unchanged;
+// above 1 the stick reaches full output at less tilt, below 1 it is gentler. Per stick: the F3
+// settings sliders (live after Save), or SHADPS4_STICK_SENS=<both>, SHADPS4_STICK_SENS_LEFT /
+// _RIGHT in shadps4-flags-user.txt, which win over the sliders.
+float EnvSensitivity(const char* name) {
+    const char* e = std::getenv(name);
+    if (!e || !*e) {
+        return -1.0f;
+    }
+    return std::clamp(static_cast<float>(std::atof(e)), 0.1f, 4.0f);
+}
+
+float StickSensitivity(bool left) {
+    static const float env_both = EnvSensitivity("SHADPS4_STICK_SENS");
+    static const float env_left = EnvSensitivity("SHADPS4_STICK_SENS_LEFT");
+    static const float env_right = EnvSensitivity("SHADPS4_STICK_SENS_RIGHT");
+    const float env_one = left ? env_left : env_right;
+    if (env_one >= 0.0f) {
+        return env_one;
+    }
+    if (env_both >= 0.0f) {
+        return env_both;
+    }
+    const float setting = left ? EmulatorSettings.GetStickSensitivityLeft()
+                               : EmulatorSettings.GetStickSensitivityRight();
+    return std::clamp(setting, 0.1f, 4.0f);
+}
+
+template <typename Stick>
+void ApplyStickSensitivity(Stick& stick, float gain) {
+    if (gain == 1.0f) {
+        return;
+    }
+    // Same byte <-> unit mapping as the deadzone: 128 steps below the centre, 127 above.
+    const auto to_unit = [](u8 v) { return (v - 128.0f) / (v < 128 ? 128.0f : 127.0f); };
+    const auto to_byte = [](float u) {
+        return static_cast<u8>(
+            std::clamp(std::lround(128.0f + u * (u < 0.0f ? 128.0f : 127.0f)), 0L, 255L));
+    };
+    // Scales x and y together, so the stick direction is kept; each byte is clamped to its range.
+    stick.x = to_byte(to_unit(stick.x) * gain);
+    stick.y = to_byte(to_unit(stick.y) * gain);
+}
+
 template <typename Stick>
 void ApplyRoundDeadzone(Stick& stick, float percent) {
     if (percent <= 0.0f) {
@@ -461,6 +505,8 @@ int ProcessStates(OrbisPadData* pData, const Input::State* states, s32 num) {
         pData[i].rightStick.y = states[i].axes[static_cast<int>(Input::Axis::RightY)];
         ApplyRoundDeadzone(pData[i].leftStick, StickDeadzonePercent(true));
         ApplyRoundDeadzone(pData[i].rightStick, StickDeadzonePercent(false));
+        ApplyStickSensitivity(pData[i].leftStick, StickSensitivity(true));
+        ApplyStickSensitivity(pData[i].rightStick, StickSensitivity(false));
         pData[i].analogButtons.l2 = states[i].axes[static_cast<int>(Input::Axis::TriggerLeft)];
         pData[i].analogButtons.r2 = states[i].axes[static_cast<int>(Input::Axis::TriggerRight)];
         pData[i].acceleration.x = states[i].acceleration.x * 0.098;

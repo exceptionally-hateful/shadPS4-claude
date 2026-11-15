@@ -72,6 +72,8 @@ void SettingsWindow::LoadSettings(std::string profile) {
     cursorTimeoutSetting = EmulatorSettings.GetCursorHideTimeout();
     stickDeadzoneLeftSetting = EmulatorSettings.GetStickDeadzoneLeft();
     stickDeadzoneRightSetting = EmulatorSettings.GetStickDeadzoneRight();
+    stickSensitivityLeftSetting = EmulatorSettings.GetStickSensitivityLeft();
+    stickSensitivityRightSetting = EmulatorSettings.GetStickSensitivityRight();
 
     /////////// Trophy Tab
     trophyPopupDisabledSetting = EmulatorSettings.IsTrophyPopupDisabled();
@@ -141,6 +143,8 @@ void SettingsWindow::SaveSettings(std::string profile) {
     EmulatorSettings.SetCursorHideTimeout(cursorTimeoutSetting, isSpecific);
     EmulatorSettings.SetStickDeadzoneLeft(stickDeadzoneLeftSetting, isSpecific);
     EmulatorSettings.SetStickDeadzoneRight(stickDeadzoneRightSetting, isSpecific);
+    EmulatorSettings.SetStickSensitivityLeft(stickSensitivityLeftSetting, isSpecific);
+    EmulatorSettings.SetStickSensitivityRight(stickSensitivityRightSetting, isSpecific);
 
     /////////// Trophy Tab
     EmulatorSettings.SetTrophyPopupDisabled(trophyPopupDisabledSetting, isSpecific);
@@ -722,6 +726,14 @@ void SettingsWindow::DrawSettingsTable(SettingsCategory category) {
             AddSettingSliderInt("Volume", volumeSetting, 0, 500);
             AddSettingSliderFloat("Left Stick Deadzone (%)", stickDeadzoneLeftSetting, 0, 40, 1);
             AddSettingSliderFloat("Right Stick Deadzone (%)", stickDeadzoneRightSetting, 0, 40, 1);
+            AddSettingSliderFloat("Left Stick Sensitivity", stickSensitivityLeftSetting, 0.25f,
+                                  3.0f, 2);
+            ImGui::SetItemTooltip(
+                "Gain applied after the deadzone: 1.00 = unchanged, above 1 reaches full tilt\n"
+                "sooner, below 1 is gentler. Live after Save. Drag, use the arrow keys, or type\n"
+                "an exact number in the box. SHADPS4_STICK_SENS* in shadps4-flags-user.txt wins.");
+            AddSettingSliderFloat("Right Stick Sensitivity", stickSensitivityRightSetting, 0.25f,
+                                  3.0f, 2);
             // GitHub #11 / #14: players look for the language here first.
             AddSettingCombo("Language (Console Language)", consoleLanguageSetting, languageOptions);
             ImGui::SetItemTooltip("The game's text and voices. Applies after a restart of the game.\n"
@@ -783,6 +795,14 @@ void SettingsWindow::DrawSettingsTable(SettingsCategory category) {
             // (pad.cpp); live after Save. SHADPS4_STICK_DEADZONE* in shadps4-flags-user.txt wins.
             AddSettingSliderFloat("Left Stick Deadzone (%)", stickDeadzoneLeftSetting, 0, 40, 1);
             AddSettingSliderFloat("Right Stick Deadzone (%)", stickDeadzoneRightSetting, 0, 40, 1);
+            AddSettingSliderFloat("Left Stick Sensitivity", stickSensitivityLeftSetting, 0.25f,
+                                  3.0f, 2);
+            ImGui::SetItemTooltip(
+                "Gain applied after the deadzone: 1.00 = unchanged, above 1 reaches full tilt\n"
+                "sooner, below 1 is gentler. Live after Save. Drag, use the arrow keys, or type\n"
+                "an exact number in the box. SHADPS4_STICK_SENS* in shadps4-flags-user.txt wins.");
+            AddSettingSliderFloat("Right Stick Sensitivity", stickSensitivityRightSetting, 0.25f,
+                                  3.0f, 2);
             AddSettingCombo("Hide Cursor", cursorStateSetting, hideCursorOptions);
 
             if (cursorStateSetting == 1) {
@@ -884,7 +904,7 @@ void SettingsWindow::AddSettingSliderInt(std::string name, int& value, int min, 
     }
 }
 
-void SettingsWindow::AddSettingSliderFloat(std::string name, float& value, int min, int max,
+void SettingsWindow::AddSettingSliderFloat(std::string name, float& value, float min, float max,
                                            int precision) {
     std::string label = "##" + name;
     std::string precisionString = "%." + std::to_string(precision) + "f";
@@ -901,9 +921,14 @@ void SettingsWindow::AddSettingSliderFloat(std::string name, float& value, int m
     ImGui::SameLine();
     ImGui::SetNextItemWidth(box);
     float typed = value;
+    // Typed numbers are clamped when the box is left, not per keystroke: typing "0.75" into a
+    // range that starts at 0.25 must not be rewritten at the "0".
     if (ImGui::InputFloat((label + "_box").c_str(), &typed, 0.0f, 0.0f,
                           precisionString.c_str())) {
-        value = std::clamp(typed, float(min), float(max));
+        value = typed;
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        value = std::clamp(value, min, max);
     }
 }
 

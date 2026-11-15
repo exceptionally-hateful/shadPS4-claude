@@ -53,7 +53,8 @@ private:
 
     void AddSettingCheckbox(std::string name, bool& value);
     void AddSettingSliderInt(std::string name, int& value, int min, int max);
-    void AddSettingSliderFloat(std::string name, float& value, int min, int max, int precision);
+    void AddSettingSliderFloat(std::string name, float& value, float min, float max,
+                               int precision);
     void AddSettingCombo(std::string name, int& value, std::vector<std::string> options);
     int GetComboIndex(std::string selection, std::vector<std::string> options);
 
@@ -152,6 +153,8 @@ private:
     int cursorTimeoutSetting;
     float stickDeadzoneLeftSetting;
     float stickDeadzoneRightSetting;
+    float stickSensitivityLeftSetting;
+    float stickSensitivityRightSetting;
 
     // Trophy tab
     bool trophyPopupDisabledSetting;

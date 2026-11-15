@@ -335,6 +335,9 @@ struct InputSettings {
     // v1.0.2: round stick deadzone in percent of full tilt (core/libraries/pad/pad.cpp).
     Setting<float> stick_deadzone_left{7.5f};  // specific
     Setting<float> stick_deadzone_right{7.5f}; // specific
+    // Stick sensitivity: gain applied after the deadzone (1.0 = unchanged), per stick.
+    Setting<float> stick_sensitivity_left{1.0f};  // specific
+    Setting<float> stick_sensitivity_right{1.0f}; // specific
 
     std::vector<OverrideItem> GetOverrideableFields() const {
         return std::vector<OverrideItem>{
@@ -356,7 +359,11 @@ struct InputSettings {
             make_override<InputSettings>("stick_deadzone_left",
                                          &InputSettings::stick_deadzone_left),
             make_override<InputSettings>("stick_deadzone_right",
-                                         &InputSettings::stick_deadzone_right)};
+                                         &InputSettings::stick_deadzone_right),
+            make_override<InputSettings>("stick_sensitivity_left",
+                                         &InputSettings::stick_sensitivity_left),
+            make_override<InputSettings>("stick_sensitivity_right",
+                                         &InputSettings::stick_sensitivity_right)};
     }
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(InputSettings, cursor_state, cursor_hide_timeout,
@@ -365,7 +372,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(InputSettings, cursor_state, cursor_hide_time
                                    default_controller_id, background_controller_input,
                                    ime_accessibility_enabled, ime_url_mail_short_panel, camera_id,
                                    is_circle_enter, use_mice_as_mice, stick_deadzone_left,
-                                   stick_deadzone_right)
+                                   stick_deadzone_right, stick_sensitivity_left,
+                                   stick_sensitivity_right)
 // -------------------------------
 // Audio settings
 // -------------------------------
@@ -793,6 +801,8 @@ public:
     SETTING_FORWARD_BOOL(m_input, MiceUsedAsMice, use_mice_as_mice)
     SETTING_FORWARD(m_input, StickDeadzoneLeft, stick_deadzone_left)
     SETTING_FORWARD(m_input, StickDeadzoneRight, stick_deadzone_right)
+    SETTING_FORWARD(m_input, StickSensitivityLeft, stick_sensitivity_left)
+    SETTING_FORWARD(m_input, StickSensitivityRight, stick_sensitivity_right)
 
     // Vulkan settings
     SETTING_FORWARD(m_vulkan, GpuId, gpu_id)
