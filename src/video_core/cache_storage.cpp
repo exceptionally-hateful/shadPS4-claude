@@ -16,6 +16,7 @@
 
 #include <miniz.h>
 
+#include <algorithm>
 #include <atomic>
 #include <string>
 #include <unordered_map>
@@ -340,7 +341,15 @@ void DataBase::Prefetch(const std::function<void(u64 done, u64 total)>& progress
             files.push_back(entry.path());
         }
     }
-    constexpr u32 NumThreads = 16;
+    // Reader threads: 16 by default; SHADPS4_CACHE_PREFETCH_THREADS=<1..32> (shadps4-flags-user.txt)
+    // lowers the CPU load of the start-up cache read, at the price of a longer load.
+    u32 NumThreads = 16;
+    if (const char* threads_env = std::getenv("SHADPS4_CACHE_PREFETCH_THREADS")) {
+        const int wanted = std::atoi(threads_env);
+        if (wanted >= 1) {
+            NumThreads = static_cast<u32>(std::min(wanted, 32));
+        }
+    }
     std::atomic<size_t> next{0};
     std::atomic<u64> bytes{0};
     // =2: one slot per file, written only by the thread that took that index.
