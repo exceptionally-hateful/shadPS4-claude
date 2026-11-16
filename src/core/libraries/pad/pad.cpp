@@ -13,8 +13,10 @@
 #include "pad.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <mutex>
 #include <array>
 #include <optional>
 
@@ -473,6 +475,67 @@ void ApplyRoundDeadzone(Stick& stick, float percent) {
     stick.y = to_byte(y * scale);
 }
 
+// Stick debug log (SHADPS4_STICK_LOG=0 turns it off): once a second while a stick is moved (and
+// whenever the sensitivity or deadzone in effect changes) one line with the settings and, per
+// stick, the largest raw push and largest final push seen in that second (0 = centre, 1 = full).
+// It shows in the log whether the sensitivity really changes what the game receives.
+template <typename Stick>
+float StickPush(const Stick& stick) {
+    const float x = (stick.x - 128.0f) / (stick.x < 128 ? 128.0f : 127.0f);
+    const float y = (stick.y - 128.0f) / (stick.y < 128 ? 128.0f : 127.0f);
+    return std::sqrt(x * x + y * y);
+}
+
+template <typename Stick>
+void LogStickSample(const Stick& raw_left, const Stick& raw_right, const Stick& out_left,
+                    const Stick& out_right) {
+    static const bool enabled = [] {
+        const char* e = std::getenv("SHADPS4_STICK_LOG");
+        return !(e && e[0] == '0');
+    }();
+    if (!enabled) {
+        return;
+    }
+    static std::mutex mutex;
+    static float raw_max[2]{};
+    static float out_max[2]{};
+    static u32 samples = 0;
+    static float last_sens[2]{-1.0f, -1.0f};
+    static float last_dz[2]{-1.0f, -1.0f};
+    static std::chrono::steady_clock::time_point window_start{};
+    std::scoped_lock lock{mutex};
+    const auto now = std::chrono::steady_clock::now();
+    if (samples == 0) {
+        window_start = now;
+    }
+    raw_max[0] = std::max(raw_max[0], StickPush(raw_left));
+    raw_max[1] = std::max(raw_max[1], StickPush(raw_right));
+    out_max[0] = std::max(out_max[0], StickPush(out_left));
+    out_max[1] = std::max(out_max[1], StickPush(out_right));
+    ++samples;
+    if (now - window_start < std::chrono::seconds{1}) {
+        return;
+    }
+    const float sens[2] = {StickSensitivity(true), StickSensitivity(false)};
+    const float dz[2] = {StickDeadzonePercent(true), StickDeadzonePercent(false)};
+    const bool moved = raw_max[0] > 0.05f || raw_max[1] > 0.05f;
+    const bool changed = sens[0] != last_sens[0] || sens[1] != last_sens[1] ||
+                         dz[0] != last_dz[0] || dz[1] != last_dz[1];
+    if (moved || changed) {
+        LOG_INFO(Lib_Pad,
+                 "StickLog: L sens={:.2f} dz={:.1f}% raw={:.2f} out={:.2f} | R sens={:.2f} "
+                 "dz={:.1f}% raw={:.2f} out={:.2f} | {} polls",
+                 sens[0], dz[0], raw_max[0], out_max[0], sens[1], dz[1], raw_max[1], out_max[1],
+                 samples);
+    }
+    last_sens[0] = sens[0];
+    last_sens[1] = sens[1];
+    last_dz[0] = dz[0];
+    last_dz[1] = dz[1];
+    raw_max[0] = raw_max[1] = out_max[0] = out_max[1] = 0.0f;
+    samples = 0;
+}
+
 } // namespace
 
 int ProcessStates(OrbisPadData* pData, const Input::State* states, s32 num) {
@@ -503,10 +566,13 @@ int ProcessStates(OrbisPadData* pData, const Input::State* states, s32 num) {
         pData[i].leftStick.y = states[i].axes[static_cast<int>(Input::Axis::LeftY)];
         pData[i].rightStick.x = states[i].axes[static_cast<int>(Input::Axis::RightX)];
         pData[i].rightStick.y = states[i].axes[static_cast<int>(Input::Axis::RightY)];
+        const auto raw_left = pData[i].leftStick;
+        const auto raw_right = pData[i].rightStick;
         ApplyRoundDeadzone(pData[i].leftStick, StickDeadzonePercent(true));
         ApplyRoundDeadzone(pData[i].rightStick, StickDeadzonePercent(false));
         ApplyStickSensitivity(pData[i].leftStick, StickSensitivity(true));
         ApplyStickSensitivity(pData[i].rightStick, StickSensitivity(false));
+        LogStickSample(raw_left, raw_right, pData[i].leftStick, pData[i].rightStick);
         pData[i].analogButtons.l2 = states[i].axes[static_cast<int>(Input::Axis::TriggerLeft)];
         pData[i].analogButtons.r2 = states[i].axes[static_cast<int>(Input::Axis::TriggerRight)];
         pData[i].acceleration.x = states[i].acceleration.x * 0.098;
