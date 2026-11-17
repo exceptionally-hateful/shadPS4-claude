@@ -54,6 +54,8 @@ std::atomic<u64> sync_upload_bytes{0};
 std::atomic<u64> sync_upload_calls{0};
 std::atomic<u64> frame_last_ns{0};
 std::atomic<u64> frame_max_ns{0};
+std::atomic<u64> ft_hist[FrameTimeBuckets]{};
+std::atomic<u64> ft_max_ns{0};
 std::atomic<u64> frame_over_10ms{0};
 std::atomic<u64> frame_over_17ms{0};
 std::atomic<u64> frame_over_33ms{0};
@@ -1859,6 +1861,40 @@ void ReportLoop() {
             const u64 asc = asc_submits.load(std::memory_order_relaxed);
             LOG_INFO(Render, "WriteFaultPages: {}",
                      WriteFaultPageReport(d_frames, gfx - prev_gfx, asc - prev_asc));
+            // FrameTime: one line per report interval with how the presented frames were spread
+            // over frame-time buckets, the slowest frame, and the bucket holding the 99th
+            // percentile (the "1% low" in frame-time terms).
+            {
+                u64 ft_counts[FrameTimeBuckets];
+                u64 ft_total = 0;
+                for (int i = 0; i < FrameTimeBuckets; ++i) {
+                    ft_counts[i] = ft_hist[i].exchange(0, std::memory_order_relaxed);
+                    ft_total += ft_counts[i];
+                }
+                const double ft_worst_ms =
+                    static_cast<double>(ft_max_ns.exchange(0, std::memory_order_relaxed)) / 1e6;
+                if (ft_total > 0) {
+                    static constexpr const char* ft_names[FrameTimeBuckets] = {
+                        "<=12", "<=17", "<=20", "<=25", "<=34", "<=50", "<=100", ">100"};
+                    u64 ft_cum = 0;
+                    int ft_p99 = FrameTimeBuckets - 1;
+                    for (int i = 0; i < FrameTimeBuckets; ++i) {
+                        ft_cum += ft_counts[i];
+                        if (ft_cum * 100 >= ft_total * 99) {
+                            ft_p99 = i;
+                            break;
+                        }
+                    }
+                    LOG_INFO(Render,
+                             "FrameTime: t={:.0f}s {} frames, slowest {:.1f} ms, 99% of frames "
+                             "{} ms | frames per bucket (ms) <=12:{} <=17:{} <=20:{} <=25:{} "
+                             "<=34:{} <=50:{} <=100:{} >100:{}",
+                             elapsed, ft_total, ft_worst_ms, ft_names[ft_p99], ft_counts[0],
+                             ft_counts[1], ft_counts[2], ft_counts[3], ft_counts[4],
+                             ft_counts[5], ft_counts[6], ft_counts[7]);
+                }
+            }
+
             prev_gfx = gfx;
             prev_asc = asc;
         }

@@ -56,6 +56,11 @@ extern std::atomic<u64> sync_upload_calls;
 // thread in CountPresentedFrame, read and reset by the report thread.
 extern std::atomic<u64> frame_last_ns;
 extern std::atomic<u64> frame_max_ns;
+// Frame-time histogram for the "FrameTime:" log line (own counters, the CSV ones are reset by the
+// CSV writer). Buckets in ms: <=12, <=17, <=20, <=25, <=34, <=50, <=100, >100.
+inline constexpr int FrameTimeBuckets = 8;
+extern std::atomic<u64> ft_hist[FrameTimeBuckets];
+extern std::atomic<u64> ft_max_ns;
 extern std::atomic<u64> frame_over_10ms;
 extern std::atomic<u64> frame_over_17ms;
 extern std::atomic<u64> frame_over_33ms;
@@ -650,6 +655,21 @@ inline void CountPresentedFrame() {
         return;
     }
     const u64 d = now - last;
+    {
+        const u64 us = d / 1000;
+        const int b = us <= 12000   ? 0
+                      : us <= 17000 ? 1
+                      : us <= 20000 ? 2
+                      : us <= 25000 ? 3
+                      : us <= 34000 ? 4
+                      : us <= 50000 ? 5
+                      : us <= 100000 ? 6
+                                     : 7;
+        ft_hist[b].fetch_add(1, std::memory_order_relaxed);
+        if (d > ft_max_ns.load(std::memory_order_relaxed)) {
+            ft_max_ns.store(d, std::memory_order_relaxed);
+        }
+    }
     if (d > frame_max_ns.load(std::memory_order_relaxed)) {
         frame_max_ns.store(d, std::memory_order_relaxed);
     }
