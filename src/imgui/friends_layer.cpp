@@ -196,6 +196,19 @@ void FriendsLayer::Draw() {
         return;
     }
 
+    // While this window has keyboard focus ImGui swallows key presses (so the F2 hotkey never
+    // arrives) and, with the mouse driving the pad, the close button can't be clicked. Close it
+    // here instead: F2 again, or Esc / the gamepad B button when no text box is being edited.
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        ImGui::GetIO().WantCaptureKeyboard) {
+        const bool editing = ImGui::IsAnyItemActive();
+        if (ImGui::IsKeyPressed(ImGuiKey_F2, false) ||
+            (!editing && (ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
+                          ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)))) {
+            g_open = false;
+        }
+    }
+
     if (ImGui::BeginTabBar("##shadnet_tabs")) {
         if (ImGui::BeginTabItem("Friends")) {
             DrawFriendsTab();

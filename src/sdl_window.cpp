@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdlib>
 #include <cstdio>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_hints.h>
@@ -576,7 +577,14 @@ void WindowSDL::WaitEvent() {
             }
         }
         break;
-    case SDL_EVENT_REMOVE_VIRTUAL_USER:
+    case SDL_EVENT_REMOVE_VIRTUAL_USER: {
+        // F4 disconnects the controller and the game pauses, which is easy to hit by accident, so
+        // it does nothing unless SHADPS4_ALLOW_REMOVE_USER=1 is set (shadps4-flags-user.txt).
+        const char* allow_remove = std::getenv("SHADPS4_ALLOW_REMOVE_USER");
+        if (!allow_remove || allow_remove[0] != '1') {
+            LOG_INFO(Input, "Remove user ignored (SHADPS4_ALLOW_REMOVE_USER=1 enables it)");
+            break;
+        }
         LOG_INFO(Input, "Remove user");
         for (int i = 3; i >= 0; i--) {
             if (controllers[i]->user_id != -1) {
@@ -587,6 +595,7 @@ void WindowSDL::WaitEvent() {
             }
         }
         break;
+    }
     case SDL_EVENT_RDOC_CAPTURE:
         if (VideoCore::IsRenderDocLoaded()) {
             VideoCore::TriggerCapture();
