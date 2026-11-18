@@ -902,11 +902,22 @@ void PipelineCache::ReadSeedStamp() {
                  elf.GameSerial(), elf.AppVer(), serial, app_ver, code_hash);
     }
     if (build != BuildId()) {
-        LOG_WARNING(Render,
-                    "CacheRebuild: the seed was verified with emulator build {}, this is {}: no "
-                    "stage is rebuilt (a =2 VERIFY run with this build writes a new stamp)",
-                    build, BuildId());
-        return;
+        // This fork changes input, settings, UI and logging only, not the shader recompiler, so a
+        // seed verified with the original build stays valid for it. Without this the whole seed
+        // is refused and every shader of the seed is compiled while playing (combat stutter).
+        // SHADPS4_SEED_ANY_BUILD=0 restores the strict check.
+        const char* any_build = std::getenv("SHADPS4_SEED_ANY_BUILD");
+        if (any_build && any_build[0] == '0') {
+            LOG_WARNING(Render,
+                        "CacheRebuild: the seed was verified with emulator build {}, this is {}: "
+                        "no stage is rebuilt (a =2 VERIFY run with this build writes a new stamp)",
+                        build, BuildId());
+            return;
+        }
+        LOG_INFO(Render,
+                 "CacheRebuild: the seed was verified with emulator build {}, this is {}: "
+                 "accepted (SHADPS4_SEED_ANY_BUILD=0 refuses it)",
+                 build, BuildId());
     }
     Shader::Profile seed_profile{};
     const bool same_profile = profile_bytes.size() == sizeof(seed_profile) &&

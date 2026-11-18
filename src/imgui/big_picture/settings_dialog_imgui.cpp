@@ -455,8 +455,9 @@ void SettingsWindow::DrawMainContent(bool* open, const std::function<void()>& ap
 
     // Align buttons right
     float buttonsWidth = ImGui::CalcTextSize("Save").x + ImGui::CalcTextSize("Cancel").x +
-                         ImGui::CalcTextSize("Apply").x + ImGui::GetStyle().FramePadding.x * 6.0f +
-                         ImGui::GetStyle().ItemSpacing.x * 2;
+                         ImGui::CalcTextSize("Apply").x + ImGui::CalcTextSize("Exit game").x +
+                         ImGui::GetStyle().FramePadding.x * 8.0f +
+                         ImGui::GetStyle().ItemSpacing.x * 3;
     ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - buttonsWidth);
 
     if (ImGui::Button("Save")) {
@@ -505,6 +506,18 @@ void SettingsWindow::DrawMainContent(bool* open, const std::function<void()>& ap
         if (applySettings) {
             applySettings();
         }
+    }
+
+    // Exit: closes this window without saving and opens the emulator's own quit window
+    // (the same one Ctrl+Shift+End opens), so the game can be left without force closing it.
+    ImGui::SameLine();
+    if (ImGui::Button("Exit game")) {
+        DeInit();
+        *open = false;
+        if (applySettings) {
+            applySettings();
+        }
+        Overlay::ToggleQuitWindow();
     }
 }
 
