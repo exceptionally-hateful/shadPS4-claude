@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cerrno>
 #include <vector>
 
 #include "common/alignment.h"
@@ -200,6 +201,19 @@ int IOFile::Open(const fs::path& path, FileAccessMode mode, FileType type, FileS
         const auto ec = std::error_code{result, std::generic_category()};
         LOG_ERROR(Common_Filesystem, "Failed to open the file at path={}, error_message={}",
                   PathToUTF8String(file_path), ec.message());
+        if (result == EACCES) {
+            // Why was access refused? A directory in place of the file, a read-only file, or
+            // something else (a lock, antivirus, folder protection): say which of the first two.
+            std::error_code fs_ec;
+            const bool exists = std::filesystem::exists(file_path, fs_ec);
+            const bool is_dir = exists && std::filesystem::is_directory(file_path, fs_ec);
+            const bool writable =
+                exists && (std::filesystem::status(file_path, fs_ec).permissions() &
+                           std::filesystem::perms::owner_write) != std::filesystem::perms::none;
+            LOG_ERROR(Common_Filesystem,
+                      "  access refused: path exists={}, is a directory={}, writable={}", exists,
+                      is_dir, writable);
+        }
     }
 
     return result;
