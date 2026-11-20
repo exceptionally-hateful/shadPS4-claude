@@ -145,7 +145,7 @@ jobs:
         shell: bash
 
   windows-sdl:
-    runs-on: windows-2025
+    runs-on: windows-2022
     needs: get-info
     steps:
     - uses: actions/checkout@v6
