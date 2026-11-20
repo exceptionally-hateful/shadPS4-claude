@@ -357,7 +357,6 @@ jobs:
 
   pre-release:
     if: false # This fork only builds the Windows SDL target
-    if: github.ref == 'refs/heads/main' && github.repository == 'shadps4-emu/shadPS4' && github.event_name == 'push'
     needs: [get-info, windows-sdl, macos-sdl, linux-sdl]
     runs-on: ubuntu-latest
     steps:
